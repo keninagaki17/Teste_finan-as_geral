@@ -1,0 +1,30 @@
+const CACHE = "ritmo-piloto-v2";
+const ASSETS = ["./","./index.html","./manifest.webmanifest","./icon-192.png","./icon-512.png"];
+
+self.addEventListener("install", event => {
+  event.waitUntil(caches.open(CACHE).then(c => c.addAll(ASSETS)).then(() => self.skipWaiting()));
+});
+self.addEventListener("activate", event => {
+  event.waitUntil(caches.keys().then(keys => Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k)))).then(() => self.clients.claim()));
+});
+self.addEventListener("fetch", event => {
+  if (event.request.method !== "GET") return;
+  event.respondWith(fetch(event.request).catch(() => caches.match(event.request).then(r => r || caches.match("./index.html"))));
+});
+self.addEventListener("push", event => {
+  let data={}; try { data=event.data?event.data.json():{} } catch {}
+  event.waitUntil(self.registration.showNotification(data.title||"Ritmo",{
+    body:data.body||"Você tem uma atualização.",
+    icon:"./icon-192.png",badge:"./icon-192.png",
+    tag:data.tag||"ritmo",renotify:true,
+    data:{url:data.url||"./"}
+  }));
+});
+self.addEventListener("notificationclick", event => {
+  event.notification.close();
+  const target=event.notification.data?.url||"./";
+  event.waitUntil(clients.matchAll({type:"window",includeUncontrolled:true}).then(list=>{
+    for(const c of list){ if("focus" in c){ c.navigate(target); return c.focus(); } }
+    return clients.openWindow(target);
+  }));
+});
